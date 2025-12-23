@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>AU FEU LES PDF ! 🔥</title>
+    <link href="https://fonts.googleapis.com/css2?family=Metal+Mania&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <style>
+        body { background: #000; color: #ff4500; font-family: 'Metal Mania', cursive; margin: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+        
+        /* Canevas pour le feu infini */
+        #fire-canvas { position: fixed; bottom: 0; left: 0; width: 100%; height: 550px; z-index: 10; pointer-events: none; }
+        
+        h1 { 
+            font-size: 4rem; text-shadow: 0 0 20px #ff0000; z-index: 20; margin-top: 40px; 
+            opacity: 0; transition: opacity 2s ease; 
+        }
+        
+        .controls { 
+            z-index: 100; border: 3px solid #ff4500; padding: 20px 40px; border-radius: 5px; 
+            cursor: pointer; background: rgba(0,0,0,0.9); transition: all 1.5s ease; 
+            opacity: 0; transform: translateY(30px); pointer-events: none;
+            font-size: 1.5rem;
+        }
+
+        .controls.active, h1.active { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+        #pages-container { position: relative; width: 100%; height: 60vh; display: flex; justify-content: center; align-items: flex-end; padding-bottom: 80px; }
+        
+        .page-wrapper { position: absolute; z-index: 5; }
+        canvas.burning-page { box-shadow: 0 0 35px rgba(0,0,0,1); border: 1px solid #111; }
+    </style>
+</head>
+<body>
+
+    <h1 id="title">AU FEU LES PDF ! 🔥</h1>
+    
+    <div id="ui" class="controls" onclick="document.getElementById('fileInput').click()">
+        SÉLECTIONNER LES PDF À BRÛLER
+        <input type="file" id="fileInput" hidden accept="application/pdf">
+    </div>
+
+    <div id="pages-container"></div>
+    <canvas id="fire-canvas"></canvas>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const container = document.getElementById('pages-container');
+        const fireCanvas = document.getElementById('fire-canvas');
+        const fireCtx = fireCanvas.getContext('2d');
+
+        // Activation de l'UI après 5 secondes
+        setTimeout(() => {
+            document.getElementById('ui').classList.add('active');
+            document.getElementById('title').classList.add('active');
+        }, 5000);
+
+        // --- SYSTÈME DE FEU ÉTERNEL ---
+        fireCanvas.width = window.innerWidth;
+        fireCanvas.height = 550;
+        let particles = [];
+
+        function spawnParticle() {
+            particles.push({
+                x: Math.random() * fireCanvas.width,
+                y: fireCanvas.height + 20,
+                vx: (Math.random() - 0.5) * 3,
+                vy: Math.random() * -7 - 4,
+                life: 1.0,
+                decay: Math.random() * 0.01 + 0.005,
+                size: Math.random() * 60 + 30,
+                hue: Math.random() * 25 + 10 
+            });
+        }
+
+        function drawFire() {
+            fireCtx.clearRect(0, 0, fireCanvas.width, fireCanvas.height);
+            fireCtx.globalCompositeOperation = 'screen'; 
+
+            // On génère TOUJOURS de nouvelles particules pour que le feu ne s'arrête jamais
+            if (particles.length < 400) {
+                for(let i=0; i<5; i++) spawnParticle();
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+                p.size += 0.2;
+
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                let alpha = p.life * 0.8;
+                let grad = fireCtx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * p.life);
+                grad.addColorStop(0, `hsla(${p.hue}, 100%, 60%, ${alpha})`);
+                grad.addColorStop(0.5, `hsla(${p.hue - 10}, 100%, 40%, ${alpha * 0.5})`);
+                grad.addColorStop(1, `hsla(${p.hue - 20}, 100%, 20%, 0)`);
+                
+                fireCtx.fillStyle = grad;
+                fireCtx.beginPath();
+                fireCtx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+                fireCtx.fill();
+            }
+            requestAnimationFrame(drawFire);
+        }
+        drawFire();
+
+        // --- GESTION DES PDF ---
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        fileInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async function() {
+                const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
+                container.innerHTML = ''; 
+                let pageCanvases = [];
+
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const viewport = page.getViewport({scale: 0.5});
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'page-wrapper';
+                    const canvas = document.createElement('canvas');
+                    canvas.className = 'burning-page';
+                    canvas.width = viewport.width; canvas.height = viewport.height;
+                    
+                    wrapper.appendChild(canvas);
+                    container.appendChild(wrapper);
+                    await page.render({canvasContext: canvas.getContext('2d'), viewport: viewport}).promise;
+                    
+                    wrapper.style.left = `calc(50% - ${viewport.width/2}px)`;
+                    // La page 1 a le z-index le plus haut pour être devant
+                    wrapper.style.zIndex = 1000 - i; 
+                    wrapper.style.bottom = `${(pdf.numPages - i) * 3}px`;
+                    
+                    pageCanvases.push({wrapper, canvas});
+                }
+
+                // Brûle la première page (index 0) en premier
+                setTimeout(() => {
+                    pageCanvases.forEach((item, index) => {
+                        setTimeout(() => burnEffect(item.wrapper, item.canvas), index * 1500);
+                    });
+                }, 1000);
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        function burnEffect(wrapper, canvas) {
+            let p = 0;
+            function run() {
+                p += 0.4; 
+                canvas.style.clipPath = `inset(0% 0% ${p}% 0%)`;
+                
+                let dark = 1 - (p/85);
+                wrapper.style.transform = `translateY(${p * 3.5}px) rotate(${(Math.random()-0.5)*8}deg) scale(${1 - p/300})`;
+                canvas.style.filter = `sepia(1) brightness(${dark}) contrast(2) blur(${p/50}px)`;
+
+                if (p < 100) requestAnimationFrame(run);
+                else wrapper.remove();
+            }
+            run();
+        }
+
+        window.addEventListener('resize', () => {
+            fireCanvas.width = window.innerWidth;
+            fireCanvas.height = 550;
+        });
+    </script>
+</body>
+</html>
